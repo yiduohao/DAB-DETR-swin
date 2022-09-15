@@ -62,6 +62,9 @@ def get_args_parser():
                         help="Temperature for width positional encoding.")
     parser.add_argument('--batch_norm_type', default='FrozenBatchNorm2d', type=str, 
                         choices=['SyncBatchNorm', 'FrozenBatchNorm2d', 'BatchNorm2d'], help="batch norm type for backbone")
+    parser.add_argument('--drop_path_rate', default='0.2', type=float,
+                        help="drop path rate for swin backbone")
+    parser.add_argument('--weight_decay_backbone', default=None, type=float)
 
     # * Transformer
     parser.add_argument('--return_interm_layers', action='store_true',
@@ -174,6 +177,8 @@ def get_args_parser():
     parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
     parser.add_argument('--amp', action='store_true',
                         help="Train with mixed precision")
+    parser.add_argument("--pretrained_backbone_path", type=str)
+    
     return parser
 
 
@@ -233,14 +238,23 @@ def main(args):
     logger.info('number of params:'+str(n_parameters))
     logger.info("params:\n"+json.dumps({n: p.numel() for n, p in model.named_parameters() if p.requires_grad}, indent=2))
 
-
-    param_dicts = [
-        {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
-        {
-            "params": [p for n, p in model_without_ddp.named_parameters() if "backbone" in n and p.requires_grad],
-            "lr": args.lr_backbone,
-        }
-    ]
+    if args.weight_decay_backbone is not None:
+        param_dicts = [
+            {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
+            {
+                "params": [p for n, p in model_without_ddp.named_parameters() if "backbone" in n and p.requires_grad],
+                "lr": args.lr_backbone,
+                "weight_decay": args.weight_decay_backbone,
+            }
+        ]
+    else:
+        param_dicts = [
+            {"params": [p for n, p in model_without_ddp.named_parameters() if "backbone" not in n and p.requires_grad]},
+            {
+                "params": [p for n, p in model_without_ddp.named_parameters() if "backbone" in n and p.requires_grad],
+                "lr": args.lr_backbone,
+            }
+        ]
 
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
@@ -336,7 +350,7 @@ def main(args):
             args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None))
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
-            # extra checkpoint before LR drop and every 100 epochs
+            # extra checkpoint before LR drop
             if (epoch + 1) % args.lr_drop == 0:
                 checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}_beforedrop.pth')
             for checkpoint_path in checkpoint_paths:
@@ -351,9 +365,9 @@ def main(args):
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
-            # extra checkpoint before LR drop and every 100 epochs
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
-                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
+            # save checkpoint on every epoch
+            # if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
+            checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
             for checkpoint_path in checkpoint_paths:
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),

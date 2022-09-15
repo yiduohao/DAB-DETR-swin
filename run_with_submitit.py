@@ -31,8 +31,8 @@ def parse_args():
 
 def get_shared_folder() -> Path:
     user = os.getenv("USER")
-    if Path("/comp_robot").is_dir():
-        p = Path(f"/comp_robot/{user}/experiments")
+    if Path("//tmp/code").is_dir():
+        p = Path(f"//tmp/code/{user}/experiments")
         p.mkdir(exist_ok=True)
         return p
     raise RuntimeError("No shared folder available")

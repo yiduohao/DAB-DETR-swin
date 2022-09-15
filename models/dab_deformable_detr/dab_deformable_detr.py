@@ -71,8 +71,8 @@ class DABDeformableDETR(nn.Module):
             if not use_dab:
                 self.query_embed = nn.Embedding(num_queries, hidden_dim*2)
             else:
-                self.tgt_embed = nn.Embedding(num_queries, hidden_dim)
-                self.refpoint_embed = nn.Embedding(num_queries, 4)
+                self.tgt_embed = nn.Embedding(num_queries, hidden_dim) # content embedding
+                self.refpoint_embed = nn.Embedding(num_queries, 4) # position embedding
                 if random_refpoints_xy:
                     # import ipdb; ipdb.set_trace()
                     self.refpoint_embed.weight.data[:, :2].uniform_(0,1)

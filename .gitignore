@@ -24,3 +24,11 @@ vis/
 model_zoo/
 model_zoo_old/
 scripts/
+__pycache__
+
+amlt
+.amltignore
+localtrain.sh
+**.egg-info
+**.egg
+models/dn_dab_deformable_detr/ops/build
